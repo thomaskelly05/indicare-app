@@ -1,6 +1,7 @@
 "use client";
 
 import { applyChildWorkspaceAction, type ChildWorkspaceActionPayload } from "@/lib/childWorkspaceApi";
+import { needsManagerAttention, ReviewStateBadge } from "./ReviewStateBadge";
 
 type WorkspaceRecord = {
   id: string;
@@ -160,11 +161,16 @@ export function ManagerActionButtons({ childId, item, onStatus, onComplete }: { 
 
   if (item.id.startsWith("schema-")) return null;
   const source = sourceFromItem(item);
+  const attention = needsManagerAttention(item.status);
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Manager workflow</div>
+    <section className={`rounded-3xl border p-4 ${attention ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-slate-50"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Manager workflow</div>
+        <ReviewStateBadge status={item.status} />
+      </div>
       <p className="mt-2 text-sm leading-6 text-slate-600">Move this item through review, approval, sign-off or create a follow-up action.</p>
+      {attention ? <p className="mt-2 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-amber-800">This item still needs an adult decision, review, update or sign-off.</p> : null}
       <div className="mt-2 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-slate-500">
         {source.source_table && source.source_id ? `Linked to ${source.source_table} #${source.source_id}` : "No exact source row yet. Save this item first, then refresh before applying a source-level action."}
       </div>
