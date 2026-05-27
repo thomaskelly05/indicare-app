@@ -68,6 +68,62 @@ async function parseJson(response: Response) {
   }
 }
 
+async function optionalGet(path: string) {
+  try {
+    const response = await fetch(`${apiBase}${path}`, { credentials: "include" });
+    if (!response.ok) return null;
+    return parseJson(response);
+  } catch {
+    return null;
+  }
+}
+
+function arrayFrom(data: any, keys: string[]) {
+  if (Array.isArray(data)) return data;
+  for (const key of keys) if (Array.isArray(data?.[key])) return data[key];
+  return [];
+}
+
+function normaliseWorkspaceDocuments(data: any) {
+  return arrayFrom(data, ["items", "documents", "data"]).map((item: any) => ({
+    ...item,
+    type: item?.type || item?.document_type || item?.group || "Document",
+    title: item?.title || item?.name || item?.document_name || "Document",
+    summary: item?.summary || item?.description || item?.review_summary || item?.status || "Document record",
+    status: item?.status || item?.workflow_status || "open",
+    source_table: item?.source_table || "child_documents",
+    source_id: item?.source_id || item?.id,
+    recommended_action: item?.recommended_action || item?.next_review_action || item?.review_status,
+    occurred_at: item?.updated_at || item?.created_at || item?.review_due_date || item?.next_review_due,
+  }));
+}
+
+function normaliseWorkspacePlans(data: any) {
+  return arrayFrom(data, ["items", "plans", "data"]).map((item: any) => ({
+    ...item,
+    type: item?.plan_type || "Plan",
+    title: item?.title || item?.plan_title || "Support plan",
+    summary: item?.summary || item?.presenting_need || item?.staff_guidance || item?.status || "Support plan",
+    status: item?.approval_status || item?.workflow_status || item?.status || "open",
+    source_table: item?.source_table || "support_plans",
+    source_id: item?.source_id || item?.id,
+    recommended_action: item?.recommended_action || item?.review_note || item?.review_date,
+    occurred_at: item?.updated_at || item?.created_at || item?.review_date || item?.start_date,
+  }));
+}
+
+function mergeExistingSources(base: any, docs: any, plans: any, sources: any) {
+  return {
+    ...base,
+    documents: normaliseWorkspaceDocuments(docs),
+    plans: normaliseWorkspacePlans(plans),
+    workspace_sources: {
+      ...(base?.workspace_sources || {}),
+      ...(sources?.sources || {}),
+    },
+  };
+}
+
 function modeForWorkspaceQuestion(question: string, context?: Record<string, unknown>): OperationalOrbMode {
   const value = `${question} ${String(context?.type || "")} ${String(context?.item_type || "")}`.toLowerCase();
   if (value.includes("ofsted") || value.includes("inspector") || value.includes("sccif")) return "ofsted_evidence_review";
@@ -161,7 +217,14 @@ export async function getChildWorkspace(childId: string, signal?: AbortSignal) {
     return { ok: false, status: response.status, data: await parseJson(response) };
   }
 
-  return { ok: true, status: response.status, data: await parseJson(response) };
+  const base = await parseJson(response);
+  const [sources, docs, plans] = await Promise.all([
+    optionalGet(`/api/os-command/young-person/${childId}/workspace/sources`),
+    optionalGet(`/child-documents?young_person_id=${encodeURIComponent(childId)}&limit=100`),
+    optionalGet(`/young-people/${encodeURIComponent(childId)}/plans`),
+  ]);
+
+  return { ok: true, status: response.status, data: mergeExistingSources(base, docs, plans, sources) };
 }
 
 export async function saveChildWorkspaceItem(childId: string, item: ChildWorkspaceItemPayload) {
