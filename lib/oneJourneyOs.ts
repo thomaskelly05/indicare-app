@@ -10,10 +10,25 @@ export type OsCard = {
   metadata?: Record<string, unknown>;
 };
 
+export type OsChild = {
+  id: string;
+  name: string;
+  preferredName?: string;
+  age?: number | null;
+  home?: string | null;
+  riskLevel?: string | null;
+  status?: string | null;
+  currentState?: string | null;
+  route: string;
+  raw?: Record<string, unknown>;
+};
+
 export type OneJourneyOsState = {
   adult?: Record<string, unknown> | null;
   home?: Record<string, unknown> | null;
   provider?: Record<string, unknown> | null;
+  children: OsChild[];
+  selectedChild?: OsChild | null;
   notifications: OsCard[];
   connect: OsCard[];
   today: OsCard[];
@@ -21,6 +36,7 @@ export type OneJourneyOsState = {
   inspection: OsCard[];
   apps: OsCard[];
   health: OsCard[];
+  schema: OsCard[];
   sourceMap?: Record<string, unknown>;
   generatedAt: string;
 };
@@ -52,6 +68,24 @@ function asArray(data: any, keys: string[]) {
 
 function text(value: unknown, fallback = '') {
   return String(value ?? '').trim() || fallback;
+}
+
+function normaliseChildren(data: any): OsChild[] {
+  return asArray(data, ['young_people', 'children', 'items', 'data']).map((child: any, index: number) => {
+    const id = text(child.young_person_id || child.id, String(index + 1));
+    return {
+      id,
+      name: text(child.display_name || child.name || child.full_name, 'Young person'),
+      preferredName: text(child.preferred_name || child.first_name, ''),
+      age: child.age ? Number(child.age) : null,
+      home: text(child.home_name || child.home, ''),
+      riskLevel: text(child.summary_risk_level || child.risk_level || child.os_state, ''),
+      status: text(child.placement_status || child.status, 'Active'),
+      currentState: text(child.current_state || child.presentation || child.summary, ''),
+      route: `/young-people/${encodeURIComponent(id)}/workspace`,
+      raw: child,
+    };
+  });
 }
 
 function notificationCards(feed: any): OsCard[] {
@@ -130,15 +164,7 @@ function managerBriefCards(brief: any): OsCard[] {
     ...asArray(data, ['sections']),
   ];
   if (!items.length) {
-    return [{
-      id: 'manager-brief',
-      title: 'Manager daily brief',
-      summary: text(data?.summary, 'Daily brief is available for managers and seniors.'),
-      status: data ? 'available' : 'not-loaded',
-      priority: 'medium',
-      route: '/command-centre/briefing',
-      source: 'manager_daily_brief',
-    }];
+    return [{ id: 'manager-brief', title: 'Manager daily brief', summary: text(data?.summary, 'Daily brief is available for managers and seniors.'), status: data ? 'available' : 'not-loaded', priority: 'medium', route: '/command-centre/briefing', source: 'manager_daily_brief' }];
   }
   return items.slice(0, 10).map((item: any, index: number) => ({
     id: text(item.id, `manager-${index}`),
@@ -159,15 +185,7 @@ function inspectionCards(inspection: any): OsCard[] {
     ...asArray(data, ['sections']),
   ];
   if (!items.length) {
-    return [{
-      id: 'inspection-readiness',
-      title: 'Inspection readiness',
-      summary: text(data?.summary, 'Inspection dashboard, packs and evidence readiness are connected.'),
-      status: data ? 'available' : 'not-loaded',
-      priority: 'medium',
-      route: '/inspection-readiness',
-      source: 'inspection_readiness',
-    }];
+    return [{ id: 'inspection-readiness', title: 'Inspection readiness', summary: text(data?.summary, 'Inspection dashboard, packs and evidence readiness are connected.'), status: data ? 'available' : 'not-loaded', priority: 'medium', route: '/inspection-readiness', source: 'inspection_readiness' }];
   }
   return items.slice(0, 12).map((item: any, index: number) => ({
     id: text(item.id, `inspection-${index}`),
@@ -183,74 +201,79 @@ function inspectionCards(inspection: any): OsCard[] {
 function sourceMapApps(sourceMap: any): OsCard[] {
   const sources = sourceMap?.sources || {};
   const priority = [
-    'profile', 'orb', 'documents', 'plans', 'risk', 'daily_notes', 'incidents', 'missing_episodes', 'safeguarding',
+    'profile', 'adult_today', 'connect', 'notifications', 'orb', 'documents', 'plans', 'risk', 'daily_notes', 'incidents', 'missing_episodes', 'safeguarding',
     'keywork', 'health', 'education', 'family', 'appointments', 'handover', 'calendar', 'reports', 'compliance',
     'standards', 'chronology', 'journey', 'recording_reviews', 'manager_operating_system', 'inspection_governance',
-    'audits_and_validation', 'connect', 'notifications'
+    'audits_and_validation'
   ];
   return priority.filter((key) => sources[key]).map((key) => {
     const routes = sources[key] as Record<string, unknown>;
     const routeValues = Object.values(routes || {}).filter((value) => typeof value === 'string') as string[];
-    return {
-      id: `app-${key}`,
-      title: key.replaceAll('_', ' '),
-      summary: `${routeValues.length} existing route(s) connected to this OS surface.`,
-      status: 'connected',
-      priority: 'normal',
-      route: routeValues[0] || '/',
-      source: 'source_map',
-      metadata: { routes },
-    };
+    return { id: `app-${key}`, title: key.replaceAll('_', ' '), summary: `${routeValues.length} existing route(s) connected to this OS surface.`, status: 'connected', priority: 'normal', route: routeValues.find((value) => value.startsWith('/')) || '/', source: 'source_map', metadata: { routes } };
   });
 }
 
-function healthCards(health: any, sourceMap: any): OsCard[] {
+function schemaCards(schema: any): OsCard[] {
+  const entries = Object.entries(schema || {});
+  const missing = entries.filter(([, ok]) => !ok);
+  const ready = entries.filter(([, ok]) => Boolean(ok));
+  const groups = [
+    ['core_child_workspace', ['vw_os_young_person_profile', 'vw_os_young_person_timeline', 'vw_os_young_person_care_record_feed', 'os_command_items']],
+    ['recording_tables', ['daily_notes', 'incidents', 'missing_episodes', 'safeguarding_records', 'keywork_sessions', 'health_records', 'education_records', 'family_contact_records']],
+    ['journey_and_voice', ['child_voice_entries', 'life_story_entries', 'handover_records', 'chronology_events']],
+    ['management_and_review', ['manager_review_queue', 'vw_os_care_plan_review_board', 'os_command_live_feed']],
+  ];
+  const cards = groups.map(([group, names]) => {
+    const groupNames = names as string[];
+    const groupMissing = groupNames.filter((name) => schema?.[name] === false);
+    return { id: `schema-${group}`, title: group.replaceAll('_', ' '), summary: groupMissing.length ? `${groupMissing.length} missing: ${groupMissing.join(', ')}` : `${groupNames.length} schema object(s) ready.`, status: groupMissing.length ? 'needs_check' : 'ready', priority: groupMissing.length ? 'high' : 'normal', route: '/api/os-command/schema-status', source: 'schema' };
+  });
+  cards.unshift({ id: 'schema-overall', title: 'Database schema readiness', summary: `${ready.length} ready · ${missing.length} missing or unavailable.`, status: missing.length ? 'needs_check' : 'ready', priority: missing.length ? 'high' : 'normal', route: '/api/os-command/schema-status', source: 'schema' });
+  return cards;
+}
+
+function healthCards(health: any, sourceMap: any, schema: any): OsCard[] {
   const sourceCount = Object.keys(sourceMap?.sources || {}).length;
+  const missingSchema = Object.values(schema || {}).filter((ok) => !ok).length;
   return [
-    {
-      id: 'os-sources-health',
-      title: 'OS source map',
-      summary: `${sourceCount} existing system surface(s) mapped into the one journey OS.`,
-      status: sourceCount ? 'connected' : 'check',
-      priority: sourceCount ? 'normal' : 'medium',
-      route: '/api/os-command/young-person/1/workspace/sources',
-      source: 'source_map',
-    },
-    {
-      id: 'notification-health',
-      title: 'Notification feed health',
-      summary: text(health?.status, 'Notification feed health route available.'),
-      status: text(health?.status, 'unknown'),
-      priority: health?.status === 'ok' ? 'normal' : 'medium',
-      route: '/notifications',
-      source: 'notifications',
-    },
+    { id: 'os-sources-health', title: 'OS source map', summary: `${sourceCount} existing system surface(s) mapped into the one journey OS.`, status: sourceCount ? 'connected' : 'check', priority: sourceCount ? 'normal' : 'medium', route: '/api/os-command/young-person/1/workspace/sources', source: 'source_map' },
+    { id: 'schema-health', title: 'Schema status', summary: missingSchema ? `${missingSchema} schema object(s) need checking.` : 'Workspace schema is ready.', status: missingSchema ? 'needs_check' : 'ready', priority: missingSchema ? 'high' : 'normal', route: '/api/os-command/schema-status', source: 'schema' },
+    { id: 'notification-health', title: 'Notification feed health', summary: text(health?.status, 'Notification feed health route available.'), status: text(health?.status, 'unknown'), priority: health?.status === 'ok' ? 'normal' : 'medium', route: '/notifications', source: 'notifications' },
   ];
 }
 
 export async function getOneJourneyOsState(): Promise<OneJourneyOsState> {
-  const [meToday, homeToday, connectUnread, notificationFeed, notificationHealth, managerBrief, inspection, sourceMap] = await Promise.all([
+  const [meToday, homeToday, childrenData, schemaStatus, connectUnread, notificationFeed, notificationHealth, managerBrief, inspection] = await Promise.all([
     getJson<any>('/api/me/today', {}),
     getJson<any>('/api/home/today', {}),
+    getJson<any>('/api/os-command/young-people', { young_people: [] }),
+    getJson<any>('/api/os-command/schema-status', {}),
     getJson<any>('/api/connect/unread', { count: 0, threads: [] }),
     getJson<any>('/api/notifications/operational-feed?unread_only=true&limit=30', { items: [], unread: 0 }),
     getJson<any>('/api/notifications/operational-feed/health', {}),
     getJson<any>('/api/manager-daily-brief', {}),
     getJson<any>('/inspection-readiness/dashboard', {}),
-    getJson<any>('/api/os-command/young-person/1/workspace/sources', {}),
   ]);
+  const children = normaliseChildren(childrenData);
+  const selectedChild = children[0] || null;
+  const childId = selectedChild?.id || '1';
+  const sourceMap = await getJson<any>(`/api/os-command/young-person/${encodeURIComponent(childId)}/workspace/sources`, {});
+  const schema = schemaCards(schemaStatus);
 
   return {
     adult: meToday?.adult || null,
     home: meToday?.home || homeToday?.home || null,
     provider: meToday?.provider || null,
+    children,
+    selectedChild,
     notifications: notificationCards(notificationFeed),
     connect: connectCards(meToday, connectUnread),
     today: meTodayCards(meToday),
     manager: managerBriefCards(managerBrief),
     inspection: inspectionCards(inspection),
     apps: sourceMapApps(sourceMap),
-    health: healthCards(notificationHealth, sourceMap),
+    health: healthCards(notificationHealth, sourceMap, schemaStatus),
+    schema,
     sourceMap: sourceMap?.sources || {},
     generatedAt: new Date().toISOString(),
   };
