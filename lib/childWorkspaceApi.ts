@@ -17,6 +17,27 @@ export type ChildWorkspaceOrbPayload = {
   context?: Record<string, unknown>;
 };
 
+export type ChildWorkspaceActionPayload = {
+  action:
+    | "submit"
+    | "request_changes"
+    | "approve"
+    | "sign_off"
+    | "mark_reviewed"
+    | "create_follow_up"
+    | "resolve_action";
+  item_type?: string;
+  item_id?: string;
+  source_table?: string;
+  source_id?: string | number;
+  title?: string;
+  summary?: string;
+  comment?: string;
+  follow_up_action?: string;
+  priority?: string;
+  metadata?: Record<string, unknown>;
+};
+
 const apiBase = process.env.NEXT_PUBLIC_INDICARE_API_BASE || "";
 
 async function parseJson(response: Response) {
@@ -50,6 +71,19 @@ export async function saveChildWorkspaceItem(childId: string, item: ChildWorkspa
       "Content-Type": "application/json",
     },
     body: JSON.stringify(item),
+  });
+
+  return { ok: response.ok, status: response.status, data: await parseJson(response) };
+}
+
+export async function applyChildWorkspaceAction(childId: string, payload: ChildWorkspaceActionPayload) {
+  const response = await fetch(`${apiBase}/api/os-command/young-person/${childId}/workspace/action`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
 
   return { ok: response.ok, status: response.status, data: await parseJson(response) };
