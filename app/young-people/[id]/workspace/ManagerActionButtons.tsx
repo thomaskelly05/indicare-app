@@ -17,15 +17,68 @@ type WorkspaceRecord = {
   sourceId?: string | number;
 };
 
+const canonicalTableByType: Record<string, string> = {
+  "daily note": "daily_notes",
+  incident: "incidents",
+  "missing episode": "missing_episodes",
+  "safeguarding concern": "safeguarding_records",
+  keywork: "keywork_sessions",
+  "direct work": "direct_work_sessions",
+  "health update": "health_records",
+  "education update": "education_records",
+  "family contact": "family_contact_records",
+  appointment: "young_person_appointments",
+  "child voice": "child_voice_entries",
+  handover: "handover_records",
+  "lifeecho memory": "life_story_entries",
+  lifeecho: "life_story_entries",
+  review: "os_manager_reviews",
+  "manager note": "os_manager_reviews",
+};
+
+function normaliseType(type: string) {
+  return String(type || "").toLowerCase().trim();
+}
+
+function inferTableFromType(type: string) {
+  const normalised = normaliseType(type);
+  if (canonicalTableByType[normalised]) return canonicalTableByType[normalised];
+  if (normalised.includes("appointment")) return "young_person_appointments";
+  if (normalised.includes("incident")) return "incidents";
+  if (normalised.includes("daily")) return "daily_notes";
+  if (normalised.includes("missing")) return "missing_episodes";
+  if (normalised.includes("safeguard")) return "safeguarding_records";
+  if (normalised.includes("keywork")) return "keywork_sessions";
+  if (normalised.includes("direct")) return "direct_work_sessions";
+  if (normalised.includes("health")) return "health_records";
+  if (normalised.includes("education")) return "education_records";
+  if (normalised.includes("family") || normalised.includes("contact")) return "family_contact_records";
+  if (normalised.includes("voice")) return "child_voice_entries";
+  if (normalised.includes("handover")) return "handover_records";
+  if (normalised.includes("life")) return "life_story_entries";
+  if (normalised.includes("review") || normalised.includes("manager")) return "os_manager_reviews";
+  return undefined;
+}
+
 function sourceFromItem(item: WorkspaceRecord) {
   if (item.sourceTable && item.sourceId !== undefined && item.sourceId !== null) {
     return { source_table: item.sourceTable, source_id: item.sourceId };
   }
 
-  if (!item.evidence) return { source_table: undefined, source_id: undefined };
-  const trimmed = item.evidence.trim();
-  const match = trimmed.match(/^([a-zA-Z0-9_]+):(\d+|[0-9a-fA-F-]{32,36})$/);
-  if (match) return { source_table: match[1], source_id: match[2] };
+  if (item.evidence) {
+    const trimmed = item.evidence.trim();
+    const match = trimmed.match(/^([a-zA-Z0-9_]+):(\d+|[0-9a-fA-F-]{32,36})$/);
+    if (match) return { source_table: match[1], source_id: match[2] };
+  }
+
+  const table = inferTableFromType(item.type);
+  if (table && /^\d+$/.test(String(item.id))) {
+    return { source_table: table, source_id: item.id };
+  }
+
+  if (item.id.startsWith("command:")) {
+    return { source_table: "os_command_items", source_id: item.id.replace("command:", "") };
+  }
 
   return { source_table: undefined, source_id: undefined };
 }
