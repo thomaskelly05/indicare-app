@@ -48,6 +48,8 @@ type WorkspaceData = {
   handover: WorkspaceRecord[];
   childVoice: WorkspaceRecord[];
   appointments: WorkspaceRecord[];
+  commandItems: WorkspaceRecord[];
+  schemaStatus: Record<string, boolean>;
 };
 
 const tabs = [
@@ -57,10 +59,12 @@ const tabs = [
   "Plans",
   "Reviews",
   "Alerts",
+  "Appointments",
   "Documents",
   "LifeEcho",
   "Handover",
   "Child Voice",
+  "Database",
 ];
 
 const recordRoutes = [
@@ -69,11 +73,14 @@ const recordRoutes = [
   "Safeguarding concern",
   "Missing episode",
   "Keywork",
+  "Direct work",
   "Health update",
   "Education update",
   "Family contact",
   "Manager note",
   "LifeEcho memory",
+  "Child Voice",
+  "Handover",
 ];
 
 const fallbackWorkspace: WorkspaceData = {
@@ -90,23 +97,19 @@ const fallbackWorkspace: WorkspaceData = {
     keyWorker: "Sarah Johnson",
     socialWorker: "A. Patel",
     legalStatus: "Section 20 accommodated",
-    communication:
-      "Jamie responds best to calm, direct language and time to process change.",
-    whatHelps:
-      "Predictable routines, visual plans, quiet space, trusted adults and clear choices.",
+    communication: "Jamie responds best to calm, direct language and time to process change.",
+    whatHelps: "Predictable routines, visual plans, quiet space, trusted adults and clear choices.",
   },
   records: [
     {
       id: "record-daily-1",
       type: "Daily note",
       title: "Evening support and emotional regulation",
-      summary:
-        "Jamie accepted reassurance, completed the evening routine and remained settled after worries about tomorrow's family contact.",
+      summary: "Jamie accepted reassurance, completed the evening routine and remained settled after worries about tomorrow's family contact.",
       status: "Submitted",
       priority: "normal",
       date: "Today 19:42",
-      evidence:
-        "Meal taken, routine completed, no missing-from-care indicators, child spoken with privately.",
+      evidence: "Meal taken, routine completed, no missing-from-care indicators, child spoken with privately.",
       action: "Keep tomorrow's contact plan visible during morning handover.",
       owner: "Night staff",
     },
@@ -114,8 +117,7 @@ const fallbackWorkspace: WorkspaceData = {
       id: "record-keywork-1",
       type: "Keywork",
       title: "Contact planning direct work",
-      summary:
-        "Jamie said the plan feels easier when adults explain it earlier and do not change details at the last minute.",
+      summary: "Jamie said the plan feels easier when adults explain it earlier and do not change details at the last minute.",
       status: "Open",
       priority: "medium",
       date: "Yesterday 16:10",
@@ -137,148 +139,16 @@ const fallbackWorkspace: WorkspaceData = {
       action: "Check child voice action before next review.",
       owner: "Registered Manager",
     },
-    {
-      id: "review-manager-1",
-      type: "Manager review",
-      title: "Manager review of contact anxiety pattern",
-      summary:
-        "Review required because three recent records mention anxiety before family contact.",
-      status: "Due today",
-      priority: "high",
-      date: "Today 21:00",
-      evidence: "Daily notes and keywork records show repeated contact-related worry.",
-      action: "Add manager oversight note and decide whether the contact plan requires review.",
-      owner: "Registered Manager",
-    },
   ],
-  plans: [
-    {
-      id: "plan-contact-1",
-      type: "Contact plan",
-      title: "Family contact support plan",
-      summary:
-        "Use predictable preparation before contact. Jamie should be told arrangements early and offered quiet time afterwards.",
-      status: "Review needed",
-      priority: "medium",
-      date: "Last reviewed 10 May 2026",
-      evidence: "Linked to direct work and daily records.",
-      action: "Review wording after latest child voice entry.",
-      owner: "Key worker",
-    },
-    {
-      id: "plan-risk-1",
-      type: "Risk plan",
-      title: "Missing from care risk assessment",
-      summary:
-        "Current risk level medium. No recent missing episode, but staff should monitor transition points and contact-related anxiety.",
-      status: "Current",
-      priority: "medium",
-      date: "Last reviewed 19 May 2026",
-      evidence: "No missing episode in current 14-day period.",
-      action: "Continue monitoring before and after contact.",
-      owner: "Deputy Manager",
-    },
-  ],
-  alerts: [
-    {
-      id: "alert-evidence-1",
-      type: "Evidence gap",
-      title: "Advocacy offer not clearly recorded",
-      summary:
-        "Recent contact planning note does not clearly evidence whether advocacy was offered, accepted or declined.",
-      status: "Open",
-      priority: "medium",
-      date: "Today",
-      evidence: "Keywork note mentions contact worry but not advocacy offer.",
-      action: "Add clarification or follow-up record.",
-      owner: "Key worker",
-    },
-    {
-      id: "alert-review-1",
-      type: "Manager oversight",
-      title: "Manager review due",
-      summary: "Contact anxiety pattern requires management oversight before end of shift.",
-      status: "Due today",
-      priority: "high",
-      date: "Today 21:00",
-      evidence: "Pattern identified across chronology and daily notes.",
-      action: "Open review and add decision rationale.",
-      owner: "Registered Manager",
-    },
-  ],
-  documents: [
-    {
-      id: "doc-care-plan-1",
-      type: "Care plan",
-      title: "Current care plan summary",
-      summary:
-        "Care plan summary uploaded and linked to placement plan, risk plan and latest LAC review.",
-      status: "Current",
-      priority: "normal",
-      date: "Uploaded 14 May 2026",
-      evidence: "IRO review document and LA care planning summary.",
-      action: "Staff acknowledgement required for new starters.",
-      owner: "Admin",
-    },
-  ],
-  lifeEcho: [
-    {
-      id: "lifeecho-1",
-      type: "Positive memory",
-      title: "Baking with staff",
-      summary: "Jamie baked with Sarah and asked for the recipe to be saved for later.",
-      status: "Saved",
-      priority: "normal",
-      date: "Sunday",
-      evidence: "Photo consent checked. Jamie wanted this added to their memory timeline.",
-      action: "Offer Jamie a printed copy for their memory book.",
-      owner: "Sarah Johnson",
-    },
-  ],
-  handover: [
-    {
-      id: "handover-1",
-      type: "Shift handover",
-      title: "Night staff handover",
-      summary:
-        "Monitor mood before tomorrow's contact plan. Jamie settled after quiet activity and reassurance.",
-      status: "Draft ready",
-      priority: "medium",
-      date: "Tonight",
-      evidence: "Generated from daily note, plan and latest child voice entry.",
-      action: "Review and confirm before shift end.",
-      owner: "Late shift lead",
-    },
-  ],
-  childVoice: [
-    {
-      id: "voice-1",
-      type: "Child voice",
-      title: "Contact should feel less last minute",
-      summary:
-        "Jamie said: 'I just want to know what is happening before people start talking about it.'",
-      status: "Linked to plan",
-      priority: "normal",
-      date: "Yesterday",
-      evidence: "Direct work note and contact plan link.",
-      action: "Reflect this in the staff quick guide.",
-      owner: "Key worker",
-    },
-  ],
-  appointments: [
-    {
-      id: "appointment-dentist-1",
-      type: "Dentist appointment",
-      title: "Last dentist appointment",
-      summary: "Routine dental check completed. No urgent treatment required.",
-      status: "Completed",
-      priority: "normal",
-      date: "3 April 2026",
-      evidence: "Dental appointment note uploaded to health documents.",
-      action: "Next routine check due October 2026.",
-      owner: "Health lead",
-    },
-  ],
+  plans: [],
+  alerts: [],
+  documents: [],
+  lifeEcho: [],
+  handover: [],
+  childVoice: [],
+  appointments: [],
+  commandItems: [],
+  schemaStatus: {},
 };
 
 function priorityClass(priority?: Priority) {
@@ -291,25 +161,42 @@ function priorityClass(priority?: Priority) {
 function normalisePriority(value: unknown): Priority {
   const priority = String(value || "normal").toLowerCase();
   if (["critical", "high", "medium", "low", "normal"].includes(priority)) return priority as Priority;
-  if (priority === "moderate") return "medium";
+  if (priority === "moderate" || priority === "urgent") return "high";
   return "normal";
+}
+
+function displayDate(value: unknown) {
+  if (!value) return "";
+  try {
+    return new Date(String(value)).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(value);
+  }
+}
+
+function recordFromApi(item: any, index: number, typeFallback: string): WorkspaceRecord {
+  return {
+    id: String(item?.id || item?.feed_id || item?.command_item_id || `${typeFallback}-${index}`),
+    type: String(item?.type || item?.record_type || item?.domain || item?.appointment_type || typeFallback),
+    title: String(item?.title || item?.context || item?.summary || typeFallback),
+    summary: String(item?.summary || item?.narrative || item?.voice_text || item?.recommended_action || "Open this item to review the evidence and update the action."),
+    status: String(item?.status || item?.workflow_status || item?.review_state || "Open"),
+    priority: normalisePriority(item?.priority || item?.severity),
+    date: displayDate(item?.occurred_at || item?.event_at || item?.appointment_date || item?.created_at || item?.next_review_due || item?.due_at),
+    evidence: String(item?.evidence || item?.evidence_summary || item?.source_table || item?.professional_name || "Evidence available in the linked record."),
+    action: String(item?.recommended_action || item?.action || item?.next_step || item?.follow_up_actions || "Review, update and sign off where required."),
+    owner: String(item?.owner || item?.assigned_to || item?.created_by || item?.recorded_by || "IndiCare"),
+  };
 }
 
 function normaliseApiWorkspace(raw: any, childId: string): WorkspaceData {
   const profile = raw?.profile || raw?.young_person || raw?.child || {};
-  const toRecord = (item: any, index: number, typeFallback: string): WorkspaceRecord => ({
-    id: String(item?.id || item?.feed_id || `${typeFallback}-${index}`),
-    type: String(item?.type || item?.record_type || item?.domain || typeFallback),
-    title: String(item?.title || item?.summary || typeFallback),
-    summary: String(item?.summary || item?.narrative || item?.recommended_action || "Open this item to review the evidence and update the action."),
-    status: String(item?.status || item?.workflow_status || item?.review_state || "Open"),
-    priority: normalisePriority(item?.priority || item?.severity),
-    date: String(item?.occurred_at || item?.event_at || item?.created_at || item?.next_review_due || ""),
-    evidence: String(item?.evidence || item?.evidence_summary || item?.source_table || "Evidence available in the linked record."),
-    action: String(item?.recommended_action || item?.action || item?.next_step || "Review, update and sign off where required."),
-    owner: String(item?.owner || item?.assigned_to || item?.created_by || "IndiCare"),
-  });
-
   return {
     child: {
       id: String(profile?.young_person_id || profile?.id || childId),
@@ -327,15 +214,17 @@ function normaliseApiWorkspace(raw: any, childId: string): WorkspaceData {
       communication: String(profile?.communication || "Check the child understanding section before recording."),
       whatHelps: String(profile?.what_helps || "Use the current plan and record what helped."),
     },
-    records: (raw?.care_records || raw?.timeline || []).map((item: any, index: number) => toRecord(item, index, "Record")),
-    reviews: (raw?.care_plan_reviews || []).map((item: any, index: number) => toRecord(item, index, "Review")),
-    plans: (raw?.plans || raw?.care_plan_reviews || []).map((item: any, index: number) => toRecord(item, index, "Plan")),
-    alerts: (raw?.alerts || raw?.safeguarding_patterns || []).map((item: any, index: number) => toRecord(item, index, "Alert")),
-    documents: (raw?.documents || []).map((item: any, index: number) => toRecord(item, index, "Document")),
-    lifeEcho: (raw?.life_echo || raw?.lifeEcho || []).map((item: any, index: number) => toRecord(item, index, "LifeEcho")),
-    handover: (raw?.handover || []).map((item: any, index: number) => toRecord(item, index, "Handover")),
-    childVoice: (raw?.child_voice || raw?.childVoice || []).map((item: any, index: number) => toRecord(item, index, "Child voice")),
-    appointments: (raw?.appointments || raw?.health || []).map((item: any, index: number) => toRecord(item, index, "Appointment")),
+    records: (raw?.care_records || raw?.timeline || []).map((item: any, index: number) => recordFromApi(item, index, "Record")),
+    reviews: (raw?.care_plan_reviews || []).map((item: any, index: number) => recordFromApi(item, index, "Review")),
+    plans: (raw?.plans || raw?.care_plan_reviews || []).map((item: any, index: number) => recordFromApi(item, index, "Plan")),
+    alerts: [...(raw?.alerts || []), ...(raw?.safeguarding_patterns || []), ...(raw?.command_items || [])].map((item: any, index: number) => recordFromApi(item, index, "Alert")),
+    documents: (raw?.documents || []).map((item: any, index: number) => recordFromApi(item, index, "Document")),
+    lifeEcho: (raw?.life_echo || raw?.lifeEcho || []).map((item: any, index: number) => recordFromApi(item, index, "LifeEcho")),
+    handover: (raw?.handover || []).map((item: any, index: number) => recordFromApi(item, index, "Handover")),
+    childVoice: (raw?.child_voice || raw?.childVoice || []).map((item: any, index: number) => recordFromApi(item, index, "Child voice")),
+    appointments: (raw?.appointments || raw?.health || []).map((item: any, index: number) => recordFromApi(item, index, "Appointment")),
+    commandItems: (raw?.command_items || []).map((item: any, index: number) => recordFromApi(item, index, "Command item")),
+    schemaStatus: raw?.schema_status || {},
   };
 }
 
@@ -358,7 +247,9 @@ export function WorkspaceClient({ childId }: { childId: string }) {
       .then((result) => {
         if (result.ok && result.data) {
           setWorkspace(normaliseApiWorkspace(result.data, childId));
-          setLoadingState("Live workspace connected.");
+          const status = result.data.schema_status || {};
+          const missing = Object.entries(status).filter(([, ok]) => !ok).length;
+          setLoadingState(missing ? `Live workspace connected · ${missing} schema check(s) missing` : "Live workspace connected · database ready");
           return;
         }
         setLoadingState("Using safe fallback workspace until live data is available.");
@@ -369,32 +260,50 @@ export function WorkspaceClient({ childId }: { childId: string }) {
 
   const allItems = useMemo(
     () => [
+      ...workspace.commandItems,
       ...workspace.records,
       ...workspace.reviews,
       ...workspace.plans,
       ...workspace.alerts,
+      ...workspace.appointments,
       ...workspace.documents,
       ...workspace.lifeEcho,
       ...workspace.handover,
       ...workspace.childVoice,
-      ...workspace.appointments,
     ],
     [workspace],
   );
 
+  const databaseItems = useMemo(
+    () => Object.entries(workspace.schemaStatus).map(([name, ok]) => ({
+      id: `schema-${name}`,
+      type: ok ? "Schema ready" : "Schema missing",
+      title: name,
+      summary: ok ? "This database object is available to the child workspace." : "This database object is missing or unavailable. Check TablePlus/migrations before relying on this feature.",
+      status: ok ? "Ready" : "Missing",
+      priority: ok ? "normal" as Priority : "high" as Priority,
+      evidence: "Backend /api/os-command/schema-status",
+      action: ok ? "No action required." : "Run or check the relevant schema migration.",
+      owner: "Database",
+    })),
+    [workspace.schemaStatus],
+  );
+
   const activeItems = useMemo(() => {
-    if (activeTab === "Overview") return [...workspace.alerts, ...workspace.reviews, ...workspace.records].slice(0, 8);
+    if (activeTab === "Overview") return [...workspace.commandItems, ...workspace.alerts, ...workspace.reviews, ...workspace.records].slice(0, 10);
     if (activeTab === "Record") return workspace.records;
     if (activeTab === "Chronology") return allItems;
     if (activeTab === "Plans") return workspace.plans;
     if (activeTab === "Reviews") return workspace.reviews;
-    if (activeTab === "Alerts") return workspace.alerts;
+    if (activeTab === "Alerts") return [...workspace.commandItems, ...workspace.alerts];
+    if (activeTab === "Appointments") return workspace.appointments;
     if (activeTab === "Documents") return workspace.documents;
     if (activeTab === "LifeEcho") return workspace.lifeEcho;
     if (activeTab === "Handover") return workspace.handover;
     if (activeTab === "Child Voice") return workspace.childVoice;
+    if (activeTab === "Database") return databaseItems;
     return [];
-  }, [activeTab, allItems, workspace]);
+  }, [activeTab, allItems, databaseItems, workspace]);
 
   function replaceItem(updated: WorkspaceRecord) {
     const replace = (items: WorkspaceRecord[]) => {
@@ -404,15 +313,16 @@ export function WorkspaceClient({ childId }: { childId: string }) {
     };
     setWorkspace((current) => ({
       ...current,
+      commandItems: replace(current.commandItems),
       records: activeTab === "Record" && !current.records.some((item) => item.id === updated.id) ? [updated, ...current.records] : replace(current.records),
       reviews: activeTab === "Reviews" && !current.reviews.some((item) => item.id === updated.id) ? [updated, ...current.reviews] : replace(current.reviews),
       plans: activeTab === "Plans" && !current.plans.some((item) => item.id === updated.id) ? [updated, ...current.plans] : replace(current.plans),
       alerts: activeTab === "Alerts" && !current.alerts.some((item) => item.id === updated.id) ? [updated, ...current.alerts] : replace(current.alerts),
+      appointments: activeTab === "Appointments" && !current.appointments.some((item) => item.id === updated.id) ? [updated, ...current.appointments] : replace(current.appointments),
       documents: activeTab === "Documents" && !current.documents.some((item) => item.id === updated.id) ? [updated, ...current.documents] : replace(current.documents),
       lifeEcho: activeTab === "LifeEcho" && !current.lifeEcho.some((item) => item.id === updated.id) ? [updated, ...current.lifeEcho] : replace(current.lifeEcho),
       handover: activeTab === "Handover" && !current.handover.some((item) => item.id === updated.id) ? [updated, ...current.handover] : replace(current.handover),
       childVoice: activeTab === "Child Voice" && !current.childVoice.some((item) => item.id === updated.id) ? [updated, ...current.childVoice] : replace(current.childVoice),
-      appointments: replace(current.appointments),
     }));
   }
 
@@ -426,6 +336,10 @@ export function WorkspaceClient({ childId }: { childId: string }) {
 
   async function saveSelected() {
     if (!selected) return;
+    if (selected.id.startsWith("schema-")) {
+      setSaveState("Database status items are read-only.");
+      return;
+    }
     setSaveState("Saving...");
     const result = await saveChildWorkspaceItem(childId, {
       item_id: selected.id,
@@ -439,8 +353,9 @@ export function WorkspaceClient({ childId }: { childId: string }) {
       owner: selected.owner,
       payload: { tab: activeTab, date: selected.date },
     });
-    setSaveState(result.ok ? "Saved to workspace." : `Save failed (${result.status}). Kept locally.`);
-    if (result.ok) setSelected(null);
+    const data = result.data || {};
+    setSaveState(result.ok && data.saved !== false ? `Saved to ${data.table || "workspace"}.` : data.message || `Save failed (${result.status}). Kept locally.`);
+    if (result.ok && data.saved !== false) setSelected(null);
   }
 
   async function runOrb(question: string) {
@@ -454,24 +369,16 @@ export function WorkspaceClient({ childId }: { childId: string }) {
     if (result.ok && result.data?.answer) {
       setOrbAnswer(String(result.data.answer));
       const evidence = Array.isArray(result.data.evidence)
-        ? result.data.evidence.map((item: any, index: number) => ({
-            id: String(item?.id || `orb-evidence-${index}`),
-            type: String(item?.event_type || item?.type || "Evidence"),
-            title: String(item?.title || "Linked evidence"),
-            summary: String(item?.summary || item?.narrative || "Evidence available."),
-            status: String(item?.status || "Reference"),
-            priority: normalisePriority(item?.priority || item?.severity),
-            date: String(item?.occurred_at || item?.created_at || ""),
-            evidence: String(item?.source_table || "Workspace evidence"),
-            action: String(item?.recommended_action || "Open the linked evidence if needed."),
-            owner: "ORB",
-          }))
+        ? result.data.evidence.map((item: any, index: number) => recordFromApi(item, index, "Evidence"))
         : [];
       setOrbEvidence(evidence);
       return;
     }
     setOrbAnswer("ORB could not reach the workspace brain. Use the local guidance and try again shortly.");
   }
+
+  const actionRail = [...workspace.commandItems, ...workspace.alerts, ...workspace.handover].slice(0, 5);
+  const schemaMissing = Object.values(workspace.schemaStatus).filter((ok) => !ok).length;
 
   return (
     <main className="min-h-screen bg-[#eef4fb] text-slate-950">
@@ -492,7 +399,7 @@ export function WorkspaceClient({ childId }: { childId: string }) {
           <nav className="mt-6 space-y-6">
             <section>
               <div className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">Child - primary</div>
-              {tabs.slice(0, 6).map((tab) => (
+              {tabs.slice(0, 7).map((tab) => (
                 <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`mb-1 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-black transition ${activeTab === tab ? "bg-white text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
                   <span>{tab}</span><span className="text-xs opacity-60">›</span>
                 </button>
@@ -500,7 +407,7 @@ export function WorkspaceClient({ childId }: { childId: string }) {
             </section>
             <section>
               <div className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.35em] text-slate-500">Child - more</div>
-              {tabs.slice(6).map((tab) => (
+              {tabs.slice(7).map((tab) => (
                 <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`mb-1 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-black transition ${activeTab === tab ? "bg-white text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>
                   <span>{tab}</span><span className="text-xs opacity-60">›</span>
                 </button>
@@ -518,12 +425,13 @@ export function WorkspaceClient({ childId }: { childId: string }) {
                 <p className="mt-1 text-xs font-bold text-slate-500">{loadingState} · {saveState}</p>
               </div>
               <div className="flex items-center gap-2 max-[760px]:mt-4">
+                <button className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-500 shadow-sm" type="button" onClick={() => setActiveTab("Database")}>{schemaMissing ? `${schemaMissing} schema issues` : "DB ready"}</button>
                 <button className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-500 shadow-sm" type="button" onClick={() => runOrb("What would Ofsted ask?")}>Ask ORB</button>
                 <button className="rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black text-white shadow-sm" type="button" onClick={() => setActiveTab("Record")}>Quick record</button>
               </div>
             </div>
             <div className="mt-4 flex gap-2 overflow-x-auto">
-              {tabs.slice(0, 5).map((tab) => (
+              {tabs.slice(0, 7).map((tab) => (
                 <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`rounded-full px-5 py-2 text-xs font-black uppercase tracking-[0.18em] ${activeTab === tab ? "bg-blue-600 text-white" : "border border-slate-200 bg-white text-slate-500"}`}>{tab}</button>
               ))}
             </div>
@@ -540,15 +448,15 @@ export function WorkspaceClient({ childId }: { childId: string }) {
                   <h2 className="mt-3 text-5xl font-black tracking-[-0.08em] max-[760px]:text-4xl">{workspace.child.name}</h2>
                   <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">Known as <strong>{workspace.child.preferredName}</strong>. {workspace.child.communication} {workspace.child.whatHelps}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    {[`Age ${workspace.child.age}`, workspace.child.status, workspace.child.riskLevel, workspace.child.legalStatus].map((item) => (
-                      <button key={item} type="button" onClick={() => setIsEditingChild(true)} className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-slate-600">{item}</button>
+                    {[`Age ${workspace.child.age}`, workspace.child.status, workspace.child.riskLevel, workspace.child.legalStatus, `${workspace.appointments.length} appointments`, `${workspace.childVoice.length} voice entries`].map((item) => (
+                      <button key={item} type="button" onClick={() => item.includes("appointment") ? setActiveTab("Appointments") : item.includes("voice") ? setActiveTab("Child Voice") : setIsEditingChild(true)} className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-slate-600">{item}</button>
                     ))}
                   </div>
                 </div>
               </div>
             </section>
 
-            <section className="mt-6 grid grid-cols-[1fr_1fr] gap-5 max-[900px]:grid-cols-1">
+            <section className="mt-6 grid grid-cols-[1fr_1fr_1fr] gap-5 max-[1000px]:grid-cols-1">
               <button type="button" onClick={() => runOrb("What needs manager review?")} className="rounded-[1.6rem] bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
                 <div className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">Current state</div>
                 <h3 className="mt-3 text-2xl font-black">Understand this child</h3>
@@ -556,8 +464,13 @@ export function WorkspaceClient({ childId }: { childId: string }) {
               </button>
               <button type="button" onClick={() => setActiveTab("Alerts")} className="rounded-[1.6rem] bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
                 <div className="text-[10px] font-black uppercase tracking-[0.35em] text-orange-500">Safety net</div>
-                <h3 className="mt-3 text-2xl font-black">{workspace.alerts.length} live alert(s)</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">Open safeguarding, missing evidence, review and overdue action prompts.</p>
+                <h3 className="mt-3 text-2xl font-black">{workspace.commandItems.length + workspace.alerts.length} live action(s)</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-600">Command items, safeguarding, evidence, review and overdue action prompts.</p>
+              </button>
+              <button type="button" onClick={() => setActiveTab("Appointments")} className="rounded-[1.6rem] bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+                <div className="text-[10px] font-black uppercase tracking-[0.35em] text-blue-500">Health / diary</div>
+                <h3 className="mt-3 text-2xl font-black">{workspace.appointments.length} appointment(s)</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-600">Drawn directly from the database appointment table.</p>
               </button>
             </section>
 
@@ -565,7 +478,7 @@ export function WorkspaceClient({ childId }: { childId: string }) {
               <section className="mt-6 rounded-[1.6rem] bg-white p-6 shadow-sm">
                 <div className="text-[10px] font-black uppercase tracking-[0.35em] text-blue-600">Record routes</div>
                 <h3 className="mt-2 text-2xl font-black">Choose what you are recording</h3>
-                <p className="mt-2 text-sm text-slate-600">Every route opens with ORB support, linked evidence and manager review prompts.</p>
+                <p className="mt-2 text-sm text-slate-600">Every route saves into the canonical database table where available.</p>
                 <div className="mt-5 grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
                   {recordRoutes.map((route) => (
                     <button key={route} type="button" onClick={() => setSelected({ id: `new-${route}-${Date.now()}`, type: route, title: route, summary: "Start recording here. ORB will help you stay factual, therapeutic and evidence-led.", status: "Draft", priority: "normal", evidence: "", action: "", owner: "Current user" })} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left font-black transition hover:border-blue-300 hover:bg-blue-50">
@@ -584,7 +497,7 @@ export function WorkspaceClient({ childId }: { childId: string }) {
               <div className="mt-5 space-y-3">
                 {activeItems.length ? activeItems.map((item) => (
                   <button key={item.id} type="button" onClick={() => setSelected(item)} className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${priorityClass(item.priority)}`}>
-                    <div className="flex items-start justify-between gap-4"><div><div className="text-[10px] font-black uppercase tracking-[0.25em] opacity-60">{item.type} · {item.status}</div><h4 className="mt-2 text-lg font-black">{item.title}</h4><p className="mt-2 text-sm leading-6 opacity-75">{item.summary}</p></div><span className="rounded-full bg-white/70 px-3 py-1 text-xs font-black">Open</span></div>
+                    <div className="flex items-start justify-between gap-4"><div><div className="text-[10px] font-black uppercase tracking-[0.25em] opacity-60">{item.type} · {item.status} {item.date ? `· ${item.date}` : ""}</div><h4 className="mt-2 text-lg font-black">{item.title}</h4><p className="mt-2 text-sm leading-6 opacity-75">{item.summary}</p><p className="mt-2 text-xs font-bold opacity-60">{item.action}</p></div><span className="rounded-full bg-white/70 px-3 py-1 text-xs font-black">Open</span></div>
                   </button>
                 )) : <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No items yet. Add one or ask ORB to find linked evidence.</div>}
               </div>
@@ -611,7 +524,7 @@ export function WorkspaceClient({ childId }: { childId: string }) {
           </section>
           <section className="mt-5 rounded-[1.4rem] bg-white p-5 shadow-sm">
             <div className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">What do I need to do now?</div>
-            <div className="mt-4 space-y-3">{workspace.alerts.concat(workspace.handover).slice(0, 4).map((item) => <button key={`todo-${item.id}`} type="button" onClick={() => setSelected(item)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-blue-50"><div className="font-black">{item.title}</div><div className="mt-1 text-xs text-slate-500">{item.action}</div></button>)}</div>
+            <div className="mt-4 space-y-3">{actionRail.map((item) => <button key={`todo-${item.id}`} type="button" onClick={() => setSelected(item)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-blue-50"><div className="font-black">{item.title}</div><div className="mt-1 text-xs text-slate-500">{item.action}</div></button>)}</div>
           </section>
         </aside>
       </div>
