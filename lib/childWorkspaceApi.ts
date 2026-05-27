@@ -84,6 +84,10 @@ function arrayFrom(data: any, keys: string[]) {
   return [];
 }
 
+function innerData(data: any) {
+  return data?.data || data;
+}
+
 function tableForCompliance(type: string) {
   if (type === "support_plan_review") return "support_plans";
   if (type === "risk_review") return "risk_assessments";
@@ -185,15 +189,7 @@ function normaliseWorkspaceReports(data: any) {
 function normaliseWorkspaceCalendar(data: any) {
   const items = arrayFrom(data, ["items", "calendar", "days", "data"]);
   if (!items.length && data?.summary) {
-    return [{
-      type: "Calendar",
-      title: "Calendar summary",
-      summary: JSON.stringify(data.summary),
-      status: "summary",
-      source_table: "calendar_summary",
-      source_id: "current_month",
-      recommended_action: "Open records by date to inspect the child journey.",
-    }];
+    return [{ type: "Calendar", title: "Calendar summary", summary: JSON.stringify(data.summary), status: "summary", source_table: "calendar_summary", source_id: "current_month", recommended_action: "Open records by date to inspect the child journey." }];
   }
   return items.map((item: any, index: number) => ({
     ...item,
@@ -209,24 +205,87 @@ function normaliseWorkspaceCalendar(data: any) {
   }));
 }
 
-function mergeExistingSources(base: any, docs: any, plans: any, sources: any, compliance: any, standards: any, standardsEvidence: any, reports: any, calendar: any) {
+function normaliseWorkspaceSourceMap(data: any) {
+  const sources = data?.sources || {};
+  return Object.entries(sources).map(([key, routes]: [string, any]) => ({
+    id: `os-source-${key}`,
+    type: "OS Surface",
+    title: key.replaceAll("_", " "),
+    summary: `${Object.keys(routes || {}).length} connected route(s): ${Object.keys(routes || {}).slice(0, 4).join(", ")}`,
+    status: "connected",
+    priority: "normal",
+    source_table: "workspace_sources",
+    source_id: key,
+    recommended_action: "Use this existing IndiCare surface inside the one journey OS rather than building a duplicate workflow.",
+  }));
+}
+
+function normaliseManagerBrief(data: any) {
+  const brief = innerData(data);
+  const sections = [
+    ...(Array.isArray(brief?.priorities) ? brief.priorities : []),
+    ...(Array.isArray(brief?.risks) ? brief.risks : []),
+    ...(Array.isArray(brief?.actions) ? brief.actions : []),
+    ...(Array.isArray(brief?.sections) ? brief.sections : []),
+  ];
+  if (!sections.length && brief) {
+    return [{ type: "Manager brief", title: "Manager daily brief", summary: brief?.summary || "Manager daily brief is available.", status: "available", source_table: "manager_daily_brief", source_id: "today", recommended_action: "Open the manager operating picture and connect relevant actions back to this child." }];
+  }
+  return sections.map((item: any, index: number) => ({
+    ...item,
+    id: item?.id || `manager-brief-${index}`,
+    type: "Manager brief",
+    title: item?.title || item?.label || "Manager priority",
+    summary: item?.summary || item?.description || item?.reason || "Manager daily brief item",
+    status: item?.status || item?.severity || "open",
+    priority: item?.priority || item?.severity || "medium",
+    source_table: item?.source_table || "manager_daily_brief",
+    source_id: item?.source_id || item?.id || index,
+    recommended_action: item?.recommended_action || item?.action || "Review in the manager operating picture.",
+  }));
+}
+
+function normaliseInspectionReadiness(data: any) {
+  const dashboard = innerData(data);
+  const items = [
+    ...arrayFrom(dashboard, ["evidence_gaps", "gaps", "items"]),
+    ...arrayFrom(dashboard, ["risks", "risk_items"]),
+    ...arrayFrom(dashboard, ["sections"]),
+  ];
+  if (!items.length && dashboard) {
+    return [{ type: "Inspection readiness", title: "Inspection readiness", summary: dashboard?.summary || "Inspection readiness dashboard is available for this child/home context.", status: "available", source_table: "inspection_readiness", source_id: "dashboard", recommended_action: "Open inspection readiness to review Reg 44, Reg 45, SCCIF and Quality Standards evidence." }];
+  }
+  return items.map((item: any, index: number) => ({
+    ...item,
+    id: item?.id || `inspection-${index}`,
+    type: "Inspection readiness",
+    title: item?.title || item?.label || item?.area || "Inspection evidence",
+    summary: item?.summary || item?.description || item?.reason || "Inspection readiness item",
+    status: item?.status || item?.risk || "review",
+    priority: item?.priority || item?.risk || "medium",
+    source_table: item?.source_table || "inspection_readiness",
+    source_id: item?.source_id || item?.id || index,
+    recommended_action: item?.recommended_action || item?.action || "Review evidence strength and link the underlying record.",
+  }));
+}
+
+function mergeExistingSources(base: any, docs: any, plans: any, sources: any, compliance: any, standards: any, standardsEvidence: any, reports: any, calendar: any, managerBrief: any, inspection: any) {
   return {
     ...base,
     documents: normaliseWorkspaceDocuments(docs),
     plans: normaliseWorkspacePlans(plans),
     compliance: normaliseWorkspaceCompliance(compliance),
     standards: normaliseWorkspaceStandards(standards, standardsEvidence),
-    reports: normaliseWorkspaceReports(reports),
+    reports: [...normaliseWorkspaceReports(reports), ...normaliseInspectionReadiness(inspection), ...normaliseWorkspaceSourceMap(sources)],
     calendar: normaliseWorkspaceCalendar(calendar),
-    workspace_sources: {
-      ...(base?.workspace_sources || {}),
-      ...(sources?.sources || {}),
-    },
+    command_items: [...(base?.command_items || []), ...normaliseManagerBrief(managerBrief)],
+    workspace_sources: { ...(base?.workspace_sources || {}), ...(sources?.sources || {}) },
   };
 }
 
 function modeForWorkspaceQuestion(question: string, context?: Record<string, unknown>): OperationalOrbMode {
   const value = `${question} ${String(context?.type || "")} ${String(context?.item_type || "")}`.toLowerCase();
+  if (value.includes("brief") || value.includes("manager daily")) return "manager_daily_brief";
   if (value.includes("ofsted") || value.includes("inspector") || value.includes("sccif")) return "ofsted_evidence_review";
   if (value.includes("therapeutic") || value.includes("rewrite") || value.includes("wording") || value.includes("record")) return "recording_live_coach";
   if (value.includes("manager") || value.includes("review") || value.includes("sign") || value.includes("approve")) return "record_quality_review";
@@ -245,7 +304,6 @@ function normaliseOperationalOrbData(data: any) {
   const contextCards = Array.isArray(inner?.context_cards) ? inner.context_cards : [];
   const recommendations = Array.isArray(inner?.recommendations) ? inner.recommendations : [];
   const reviewPrompts = Array.isArray(inner?.review_prompts) ? inner.review_prompts : [];
-
   const evidence = [
     ...evidenceItems.map((item: any, index: number) => ({ id: item?.id || `evidence-${index}`, type: item?.source_type || "ORB evidence", title: item?.label || item?.title || "Evidence", summary: item?.basis || item?.excerpt || item?.route || "Evidence used by operational ORB.", status: item?.severity || "info", priority: item?.severity || "normal", evidence: item?.route || item?.source_type, action: item?.basis })),
     ...sources.map((item: any, index: number) => ({ id: item?.route || `source-${index}`, type: item?.source_type || "ORB source", title: item?.label || "Source", summary: item?.excerpt || item?.basis || "Permissioned source used by operational ORB.", status: "source", priority: "normal", evidence: item?.route || item?.source_type, action: item?.basis })),
@@ -253,20 +311,17 @@ function normaliseOperationalOrbData(data: any) {
     ...recommendations.map((item: any, index: number) => ({ id: item?.id || `recommendation-${index}`, type: "Recommendation", title: item?.title || "Recommendation", summary: item?.summary || item?.rationale || "Recommended action from operational ORB.", status: item?.priority || "medium", priority: item?.priority || "medium", evidence: Array.isArray(item?.source_labels) ? item.source_labels.join(", ") : item?.route_hint, action: item?.suggested_action })),
     ...reviewPrompts.map((item: any, index: number) => ({ id: item?.id || `review-${index}`, type: "Review prompt", title: item?.title || "Review prompt", summary: item?.reason || "Operational review prompt.", status: item?.priority || "medium", priority: item?.priority || "medium", evidence: item?.route_hint, action: item?.reason })),
   ];
-
   return { ok: true, answer: inner?.answer || inner?.briefing?.summary || "ORB has reviewed the permissioned operational context.", evidence, operational_orb: true, raw: inner };
 }
 
 export async function getChildWorkspace(childId: string, signal?: AbortSignal) {
   const response = await fetch(`${apiBase}/api/os-command/young-person/${childId}/workspace`, { credentials: "include", signal });
-
   if (!response.ok) return { ok: false, status: response.status, data: await parseJson(response) };
-
   const base = await parseJson(response);
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const [sources, docs, plans, compliance, standards, standardsEvidence, reports, calendar] = await Promise.all([
+  const [sources, docs, plans, compliance, standards, standardsEvidence, reports, calendar, managerBrief, inspection] = await Promise.all([
     optionalGet(`/api/os-command/young-person/${childId}/workspace/sources`),
     optionalGet(`/child-documents?young_person_id=${encodeURIComponent(childId)}&limit=100`),
     optionalGet(`/young-people/${encodeURIComponent(childId)}/plans`),
@@ -275,9 +330,10 @@ export async function getChildWorkspace(childId: string, signal?: AbortSignal) {
     optionalGet(`/young-people/${encodeURIComponent(childId)}/standards/evidence`),
     optionalGet(`/young-people/${encodeURIComponent(childId)}/reports`),
     optionalGet(`/young-people/${encodeURIComponent(childId)}/calendar-summary?year=${year}&month=${month}`),
+    optionalGet(`/api/manager-daily-brief`),
+    optionalGet(`/inspection-readiness/dashboard?child_id=${encodeURIComponent(childId)}`),
   ]);
-
-  return { ok: true, status: response.status, data: mergeExistingSources(base, docs, plans, sources, compliance, standards, standardsEvidence, reports, calendar) };
+  return { ok: true, status: response.status, data: mergeExistingSources(base, docs, plans, sources, compliance, standards, standardsEvidence, reports, calendar, managerBrief, inspection) };
 }
 
 export async function saveChildWorkspaceItem(childId: string, item: ChildWorkspaceItemPayload) {
@@ -310,10 +366,8 @@ export async function askChildWorkspaceOrb(childId: string, payload: ChildWorksp
       high_level_flags: [payload.context?.sourceTable ? `source_table:${String(payload.context.sourceTable)}` : "child_workspace", payload.context?.sourceId ? `source_id:${String(payload.context.sourceId)}` : "workspace_orb"],
     }),
   });
-
   const operationalData = await parseJson(operationalResponse);
   if (operationalResponse.ok && operationalData?.success !== false) return { ok: true, status: operationalResponse.status, data: normaliseOperationalOrbData(operationalData) };
-
   const response = await fetch(`${apiBase}/api/os-command/young-person/${childId}/workspace/orb`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   return { ok: response.ok, status: response.status, data: await parseJson(response) };
 }
