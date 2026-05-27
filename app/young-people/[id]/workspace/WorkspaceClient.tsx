@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   askChildWorkspaceOrb,
   getChildWorkspace,
@@ -77,6 +77,7 @@ const recordRoutes = [
   "Health update",
   "Education update",
   "Family contact",
+  "Appointment",
   "Manager note",
   "LifeEcho memory",
   "Child Voice",
@@ -113,33 +114,8 @@ const fallbackWorkspace: WorkspaceData = {
       action: "Keep tomorrow's contact plan visible during morning handover.",
       owner: "Night staff",
     },
-    {
-      id: "record-keywork-1",
-      type: "Keywork",
-      title: "Contact planning direct work",
-      summary: "Jamie said the plan feels easier when adults explain it earlier and do not change details at the last minute.",
-      status: "Open",
-      priority: "medium",
-      date: "Yesterday 16:10",
-      evidence: "Child voice captured and linked to contact plan.",
-      action: "Update contact quick guide before next review.",
-      owner: "Key worker",
-    },
   ],
-  reviews: [
-    {
-      id: "review-lac-1",
-      type: "LAC review",
-      title: "Last LAC review",
-      summary: "Last LAC review recorded 14 May 2026. Next review due 12 August 2026.",
-      status: "Completed",
-      priority: "normal",
-      date: "14 May 2026",
-      evidence: "IRO minutes uploaded and linked to care planning actions.",
-      action: "Check child voice action before next review.",
-      owner: "Registered Manager",
-    },
-  ],
+  reviews: [],
   plans: [],
   alerts: [],
   documents: [],
@@ -240,23 +216,23 @@ export function WorkspaceClient({ childId }: { childId: string }) {
   const [loadingState, setLoadingState] = useState("Loading workspace...");
   const [saveState, setSaveState] = useState("All local changes are ready to save.");
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoadingState("Loading live workspace...");
-    getChildWorkspace(childId, controller.signal)
-      .then((result) => {
-        if (result.ok && result.data) {
-          setWorkspace(normaliseApiWorkspace(result.data, childId));
-          const status = result.data.schema_status || {};
-          const missing = Object.entries(status).filter(([, ok]) => !ok).length;
-          setLoadingState(missing ? `Live workspace connected · ${missing} schema check(s) missing` : "Live workspace connected · database ready");
-          return;
-        }
-        setLoadingState("Using safe fallback workspace until live data is available.");
-      })
-      .catch(() => setLoadingState("Using safe fallback workspace until live data is available."));
-    return () => controller.abort();
+  const loadWorkspace = useCallback(async (message = "Loading live workspace...") => {
+    setLoadingState(message);
+    const result = await getChildWorkspace(childId);
+    if (result.ok && result.data) {
+      setWorkspace(normaliseApiWorkspace(result.data, childId));
+      const status = result.data.schema_status || {};
+      const missing = Object.entries(status).filter(([, ok]) => !ok).length;
+      setLoadingState(missing ? `Live workspace connected · ${missing} schema check(s) missing` : "Live workspace connected · database ready");
+      return true;
+    }
+    setLoadingState("Using safe fallback workspace until live data is available.");
+    return false;
   }, [childId]);
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [loadWorkspace]);
 
   const allItems = useMemo(
     () => [
@@ -354,8 +330,14 @@ export function WorkspaceClient({ childId }: { childId: string }) {
       payload: { tab: activeTab, date: selected.date },
     });
     const data = result.data || {};
-    setSaveState(result.ok && data.saved !== false ? `Saved to ${data.table || "workspace"}.` : data.message || `Save failed (${result.status}). Kept locally.`);
-    if (result.ok && data.saved !== false) setSelected(null);
+    if (result.ok && data.saved !== false) {
+      setSaveState(`Saved to ${data.table || "workspace"}. Refreshing from database...`);
+      setSelected(null);
+      await loadWorkspace("Refreshing saved record from TablePlus...");
+      setSaveState(`Saved to ${data.table || "workspace"}.`);
+      return;
+    }
+    setSaveState(data.message || `Save failed (${result.status}). Kept locally.`);
   }
 
   async function runOrb(question: string) {
@@ -425,6 +407,7 @@ export function WorkspaceClient({ childId }: { childId: string }) {
                 <p className="mt-1 text-xs font-bold text-slate-500">{loadingState} · {saveState}</p>
               </div>
               <div className="flex items-center gap-2 max-[760px]:mt-4">
+                <button className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-500 shadow-sm" type="button" onClick={() => void loadWorkspace("Refreshing workspace from database...")}>Refresh</button>
                 <button className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-500 shadow-sm" type="button" onClick={() => setActiveTab("Database")}>{schemaMissing ? `${schemaMissing} schema issues` : "DB ready"}</button>
                 <button className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-500 shadow-sm" type="button" onClick={() => runOrb("What would Ofsted ask?")}>Ask ORB</button>
                 <button className="rounded-2xl bg-blue-600 px-4 py-3 text-xs font-black text-white shadow-sm" type="button" onClick={() => setActiveTab("Record")}>Quick record</button>
