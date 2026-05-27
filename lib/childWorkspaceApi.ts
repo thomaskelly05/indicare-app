@@ -205,6 +205,38 @@ function normaliseWorkspaceCalendar(data: any) {
   }));
 }
 
+function normaliseWorkspaceReviewQueue(data: any) {
+  const reviewItems = arrayFrom(data, ["review_queue"]).map((item: any) => ({
+    ...item,
+    id: item?.id || `review-queue-${item?.source_table || "item"}-${item?.source_id || "new"}`,
+    type: item?.type || "Manager review",
+    title: item?.title || item?.record_type || "Manager review",
+    summary: item?.summary || item?.review_reason || "Manager review required.",
+    status: item?.status || item?.workflow_status || "pending",
+    priority: item?.priority === "urgent" ? "critical" : item?.priority || "medium",
+    source_table: item?.source_table || "manager_review_queue",
+    source_id: item?.source_id || item?.id,
+    recommended_action: item?.recommended_action || item?.review_reason || "Open, review and record the manager decision.",
+    occurred_at: item?.occurred_at || item?.created_at || item?.updated_at,
+  }));
+
+  const commandItems = arrayFrom(data, ["command_items"]).map((item: any) => ({
+    ...item,
+    id: item?.id || item?.feed_id || item?.command_item_id,
+    type: item?.type || "Command item",
+    title: item?.title || "Command item",
+    summary: item?.summary || item?.recommended_action || "Workspace command item.",
+    status: item?.status || "open",
+    priority: item?.priority || "medium",
+    source_table: item?.source_table || "os_command_items",
+    source_id: item?.source_id || item?.command_item_id || item?.id,
+    recommended_action: item?.recommended_action || "Open and complete this action.",
+    occurred_at: item?.created_at || item?.updated_at || item?.due_at,
+  }));
+
+  return [...reviewItems, ...commandItems];
+}
+
 function normaliseWorkspaceSourceMap(data: any) {
   const sources = data?.sources || {};
   return Object.entries(sources).map(([key, routes]: [string, any]) => ({
@@ -269,7 +301,8 @@ function normaliseInspectionReadiness(data: any) {
   }));
 }
 
-function mergeExistingSources(base: any, docs: any, plans: any, sources: any, compliance: any, standards: any, standardsEvidence: any, reports: any, calendar: any, managerBrief: any, inspection: any) {
+function mergeExistingSources(base: any, docs: any, plans: any, sources: any, compliance: any, standards: any, standardsEvidence: any, reports: any, calendar: any, managerBrief: any, inspection: any, reviewQueue: any) {
+  const reviewQueueItems = normaliseWorkspaceReviewQueue(reviewQueue);
   return {
     ...base,
     documents: normaliseWorkspaceDocuments(docs),
@@ -278,7 +311,8 @@ function mergeExistingSources(base: any, docs: any, plans: any, sources: any, co
     standards: normaliseWorkspaceStandards(standards, standardsEvidence),
     reports: [...normaliseWorkspaceReports(reports), ...normaliseInspectionReadiness(inspection), ...normaliseWorkspaceSourceMap(sources)],
     calendar: normaliseWorkspaceCalendar(calendar),
-    command_items: [...(base?.command_items || []), ...normaliseManagerBrief(managerBrief)],
+    command_items: [...reviewQueueItems, ...(base?.command_items || []), ...normaliseManagerBrief(managerBrief)],
+    workspace_review_queue: reviewQueue,
     workspace_sources: { ...(base?.workspace_sources || {}), ...(sources?.sources || {}) },
   };
 }
@@ -321,7 +355,7 @@ export async function getChildWorkspace(childId: string, signal?: AbortSignal) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const [sources, docs, plans, compliance, standards, standardsEvidence, reports, calendar, managerBrief, inspection] = await Promise.all([
+  const [sources, docs, plans, compliance, standards, standardsEvidence, reports, calendar, managerBrief, inspection, reviewQueue] = await Promise.all([
     optionalGet(`/api/os-command/young-person/${childId}/workspace/sources`),
     optionalGet(`/child-documents?young_person_id=${encodeURIComponent(childId)}&limit=100`),
     optionalGet(`/young-people/${encodeURIComponent(childId)}/plans`),
@@ -332,8 +366,14 @@ export async function getChildWorkspace(childId: string, signal?: AbortSignal) {
     optionalGet(`/young-people/${encodeURIComponent(childId)}/calendar-summary?year=${year}&month=${month}`),
     optionalGet(`/api/manager-daily-brief`),
     optionalGet(`/inspection-readiness/dashboard?child_id=${encodeURIComponent(childId)}`),
+    optionalGet(`/api/os-command/young-person/${encodeURIComponent(childId)}/workspace/review-queue`),
   ]);
-  return { ok: true, status: response.status, data: mergeExistingSources(base, docs, plans, sources, compliance, standards, standardsEvidence, reports, calendar, managerBrief, inspection) };
+  return { ok: true, status: response.status, data: mergeExistingSources(base, docs, plans, sources, compliance, standards, standardsEvidence, reports, calendar, managerBrief, inspection, reviewQueue) };
+}
+
+export async function getChildWorkspaceReviewQueue(childId: string) {
+  const response = await fetch(`${apiBase}/api/os-command/young-person/${childId}/workspace/review-queue`, { credentials: "include" });
+  return { ok: response.ok, status: response.status, data: await parseJson(response) };
 }
 
 export async function saveChildWorkspaceItem(childId: string, item: ChildWorkspaceItemPayload) {
