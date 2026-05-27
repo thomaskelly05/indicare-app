@@ -13,13 +13,21 @@ type WorkspaceRecord = {
   evidence?: string;
   action?: string;
   owner?: string;
+  sourceTable?: string;
+  sourceId?: string | number;
 };
 
-function sourceFromEvidence(evidence?: string) {
-  if (!evidence) return { source_table: undefined, source_id: undefined };
-  const trimmed = evidence.trim();
-  if (!trimmed || trimmed.includes(" ")) return { source_table: undefined, source_id: undefined };
-  return { source_table: trimmed, source_id: undefined };
+function sourceFromItem(item: WorkspaceRecord) {
+  if (item.sourceTable && item.sourceId !== undefined && item.sourceId !== null) {
+    return { source_table: item.sourceTable, source_id: item.sourceId };
+  }
+
+  if (!item.evidence) return { source_table: undefined, source_id: undefined };
+  const trimmed = item.evidence.trim();
+  const match = trimmed.match(/^([a-zA-Z0-9_]+):(\d+|[0-9a-fA-F-]{32,36})$/);
+  if (match) return { source_table: match[1], source_id: match[2] };
+
+  return { source_table: undefined, source_id: undefined };
 }
 
 function payloadFor(
@@ -27,7 +35,7 @@ function payloadFor(
   item: WorkspaceRecord,
   comment: string,
 ): ChildWorkspaceActionPayload {
-  const source = sourceFromEvidence(item.evidence);
+  const source = sourceFromItem(item);
   return {
     action,
     item_type: item.type,
@@ -43,6 +51,8 @@ function payloadFor(
       current_status: item.status,
       date: item.date,
       owner: item.owner,
+      source_table: source.source_table,
+      source_id: source.source_id,
     },
   };
 }
@@ -73,8 +83,9 @@ export function ManagerActionButtons({
   onComplete: () => Promise<void>;
 }) {
   async function runAction(action: (typeof actions)[number]) {
+    const source = sourceFromItem(item);
     const comment = action.prompt ? window.prompt(action.prompt, item.action || "") || "" : item.action || "";
-    onStatus(`${action.label}...`);
+    onStatus(source.source_table && source.source_id ? `${action.label} ${source.source_table} #${source.source_id}...` : `${action.label}...`);
     const result = await applyChildWorkspaceAction(childId, payloadFor(action.action, item, comment));
     if (result.ok && result.data?.ok !== false) {
       onStatus(`${action.label} complete. Refreshing from database...`);
@@ -87,6 +98,8 @@ export function ManagerActionButtons({
 
   if (item.id.startsWith("schema-")) return null;
 
+  const source = sourceFromItem(item);
+
   return (
     <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
       <div className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
@@ -95,6 +108,11 @@ export function ManagerActionButtons({
       <p className="mt-2 text-sm leading-6 text-slate-600">
         Move this item through review, approval, sign-off or create a follow-up action.
       </p>
+      <div className="mt-2 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-slate-500">
+        {source.source_table && source.source_id
+          ? `Linked to ${source.source_table} #${source.source_id}`
+          : "No exact source row yet. Save this item first, then refresh before applying a source-level action."}
+      </div>
       <div className="mt-4 flex flex-wrap gap-3">
         {actions.map((action) => (
           <button
